@@ -1,0 +1,14 @@
+Fine tune the neural network... it's returning nonsense also right now
+Try HMM and Structures Perceptron :- fails...
+
+try to apply another filter over the output of the Neural Network remove further nonsense.
+
+ML learning techniques will used in conjunction with the hard-coded filters as they also perform well enough
+
+Standardize the data... Also complexity can be added
+Instead... dataset needs to be improved. Need more variety. It needs to be made more singapore sensitive
+
+Sequencing feature is still not coming...
+
+parallelize the image extractor... very slow
+train the RNN and the CNN using rolling data... it makes more sense to do it that way for both

@@ -1,0 +1,95 @@
+2nd June- tried to extract a pattern in text by applying the fourier transform on length of paragraph. Can't get any clear and definite patterns. Need to use higher dimentional vectors with more features.
+
+3rd June- ideas:
+1. use classifiers like ANN for headings extraction and train on websites whose structure is well known eg. ladyironchef
+2. capture a place heading with an address in between
+
+Going to implement the address identifier which uses the UN database... IMPLEMENTED
+
+6th June:-
+Implemented the address identifier using UN database but it's not working properly... fixing it today. FIXED
+Idea: Instead of manual parameters in the address identification mechanism, use machine learning to fix the optimum parameters
+
+7th June:- Planning to implement the machine learning module for learning the structure of an address based on the keywords and structure of the text.
+collected and cleaned the dataset for training
+
+8th June:- further enhancing the dataset and then going to train using differentmodels
+Need to have not only the address but also along with it random text above and below to emulate the real world data
+
+9th June:- researching techniques for image extraction... can use pinterest attributes in images
+
+10th June:- written script for image extraction... images are extracted based on size and attached to place names ie. headers using document similarity methods
+can use library seqlearn... which is especially built for these tasks
+
+11th June:- Playing around with Lasagne to make sense out of it
+
+12th June:- Managed to train a RNN and an LSTM-NN which are giving reasonable accuracy... Need to cluster the terms now based on probability distributions to extract the final addresses
+
+13th June:- Made the classifier for addresses... using kmeans at the end to segregate the addresses
+
+14th June:- Researching techniques to extract addresses. Reada few papers on text tiling and structural machine learning. Will implement header extraction tomorrow
+
+15th June:- Address extraction working fully... updated on the portal
+Starting title extraction
+
+16th June:- Thinking about extracting headers... Also consolidates addresses retrieved into blocks
+
+17th June:- new idea to use existing places APIs given by Ben
+
+20th June:- Fixed the current title getter... somewhat better
+
+21st June:- Almost done title extraction... only bottleneck is addresses
+
+22nd June:- Trying to get images. tried to improve the RNNs and the training data but to no avail...
+
+23rd June:- Improving the title extractor. Removed the need for 2nd kmeans clusterer. Idea: Use CNNs instead of RNNs for address classification
+
+24th June:- Headings, paragraphs and addresses have been joined with each other..., next up images
+
+27th June:- trying rolling
+
+28th June:- trying rolling, removing errors
+
+29th June:- trying xgboost... rolling not working somehow. Fixed the RNN model. Will go forward with that and try to use it with xgboost.
+
+30th June:- will do the other tasks on the list instead of the classifier. Completed the JSONify of the aggregated results. Also implemented the image assigning module
+
+1st July! :- will try to restructure the code. make it more like a package so that classifiers can be tested easily later.
+
+2nd July:- cleaning the code only...
+
+3rd July:- Scraped the idea of model class. Predictors working fine...
+
+4th July:- will try to wind up the code refactoring branch and merge in master.
+Changed the weights of the streets... 1000 is too much
+
+5th July:- Integrated the whole thing with the extension... Playing around with the dataset and classifier
+
+6th July:- Removing the number of streets feature as I think it is the one which is causing problems. Will try CNN and Deep Belief Neural Networks
+
+7th July:- fixed some bugs relating to address extraction. tried CNNs but it;s not working very well...
+
+8th July:- CNNs working better than yesterday but still not usable...
+
+
+9th July:- Broke head on different types of RNN's, with appended rolling sequences, normal sequencing, single prediction of a whole sequence as opposed to finding the labels for every paragraph in a sequence etc... started to conduct TSNE analysis, tried to scale and normalize the features, and even expanded them by taking polynomial interactions
+
+10th July:- More or less same as yesterday...
+
+1th July:- The poly features 5 sequence RNN is working fine... it get a good verification error but still cant classify as well... will work in the idea of separating the classification of different parts of the address as it in that ACM paper
+
+12th July:- starting first with the TSNE analysis of that different label idea before implementing it
+
+13th July:- implemented the segmented address classifier and it's giving good performance. it's accuracy is also above 99% implying that problem is lack of diversity of training data
+
+14th July:- Fixing small bugs and writing documentation
+
+15th July:- Mainly documentation and going through the code with Kelvin and Justin...
+
+18th July:- Conducted more tests with hieracchical approach and now more convinced that that the problem is lack of training data
+
+19th July:- 2 ideas... Increase the training data or loosen the features and classifier so that it doesn't learn very strongly. Will try them
+
+21st July:- Best model found on testing branch... problem is lack of diversity in training data... will try word2vec also soon
+
+23rd July:- trying to fix the lstm NN for categorical classification...
