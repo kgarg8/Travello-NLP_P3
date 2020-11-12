@@ -108,8 +108,7 @@ def generate_data():
         temp.append(addrs[i]['address']['address1'].encode('ascii', 'ignore'))
         cnt += 1
         if rnum > 0.05:
-            temp.append(addrs[i]['address']['city'].encode('ascii', 'ignore') + ", " + addrs[i]['address'][
-                        'state'].encode('ascii', 'ignore') + ", " + addrs[i]['address']['postalCode'].encode('ascii', 'ignore'))
+            temp.append(addrs[i]['address']['city'].encode('ascii', 'ignore') + ", " + addrs[i]['address']['state'].encode('ascii', 'ignore') + ", " + addrs[i]['address']['postalCode'].encode('ascii', 'ignore'))
             cnt += 1
 
             # dont put phone numbers in all cases as then it will learn that only
