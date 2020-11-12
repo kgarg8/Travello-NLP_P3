@@ -7,6 +7,7 @@ import urllib.request, urllib.error, urllib.parse
 import json
 import re
 from create_training import getvec
+import pdb
 
 eps = 0
 
@@ -472,7 +473,7 @@ def load_dataset(X, y, NUM_FEATURES, wndw=1):
         # 0 buffers for training and validation data...
         # not needed for labels though as buffering doesn't increase the
         # number of data points... this a bug till now
-        Xbuffer = np.ones((wndw / 2, num_feat)) * eps
+        Xbuffer = np.ones((wndw // 2, num_feat)) * eps
         X_train = np.vstack([Xbuffer, X_train, Xbuffer])
         X_val = np.vstack([Xbuffer, X_val, Xbuffer])
 
