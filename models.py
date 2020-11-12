@@ -2,10 +2,10 @@ from utils import load_dataset
 from nltk.tokenize import TreebankWordTokenizer
 import re
 import time
-import theano.tensor as T
+# import theano.tensor as T
 import numpy as np
-import lasagne
-import theano
+#import lasagne
+# import theano
 import sys
 
 sys.path.insert(0, './database/features')
