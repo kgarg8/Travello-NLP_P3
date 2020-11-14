@@ -15,21 +15,24 @@ from labels2 import y2
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 class Model(nn.Module):
     def __init__(self, dataset):
         super(Model, self).__init__()
-        self.lstm_size = 128
+        # self.lstm_size = 128
+        self.lstm_size = 8  # Hardcoded, TO CHANGE
         self.embedding_dim = 128
         self.num_layers = 3
 
-        n_vocab = 1000 #TO CHANGE
+        n_vocab = 2  # TO CHANGE
         # n_vocab = len(dataset.uniq_words)
-        self.embedding = nn.Embedding(
-            num_embeddings=n_vocab,
-            embedding_dim=self.embedding_dim,
-        )
+        # self.embedding = nn.Embedding(
+        #     num_embeddings=n_vocab,
+        #     embedding_dim=self.embedding_dim,
+        # )
         self.lstm = nn.LSTM(
-            input_size=self.lstm_size,
+            # input_size=self.lstm_size,
+            input_size=8,
             hidden_size=self.lstm_size,
             num_layers=self.num_layers,
             dropout=0.2,
@@ -37,7 +40,8 @@ class Model(nn.Module):
         self.fc = nn.Linear(self.lstm_size, n_vocab)
 
     def forward(self, x, prev_state):
-        embed = self.embedding(x)
+        # embed = self.embedding(x) # v2: create embeddings using NN
+        embed = x.float()  # v1: only hand-designed features
         output, state = self.lstm(embed, prev_state)
         logits = self.fc(output)
         return logits, state
@@ -46,16 +50,19 @@ class Model(nn.Module):
         return (torch.zeros(self.num_layers, sequence_length, self.lstm_size),
                 torch.zeros(self.num_layers, sequence_length, self.lstm_size))
 
+
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, args,):
         self.args = args
-        self.X_train, self.y_train, self.X_val, self.y_val = load_dataset(X1, y1, self.args.num_features)
+        self.X_train, self.y_train, self.X_val, self.y_val = load_dataset(
+            X1, y1, self.args.num_features)
 
     def __len__(self):
-        return self.args.batch_size
+        return self.X_train.shape[0] - self.args.sequence_length - 1
 
     def __getitem__(self, index):
         return torch.from_numpy(self.X_train[index:index + self.args.sequence_length]), torch.from_numpy(self.y_train[index:index + self.args.sequence_length]), torch.from_numpy(self.X_val[index:index + self.args.sequence_length]), torch.from_numpy(self.y_val[index:index + self.args.sequence_length])
+
 
 def train(dataset, model, args):
     model.train()
@@ -66,23 +73,42 @@ def train(dataset, model, args):
 
     for epoch in range(args.max_epochs):
         state_h, state_c = model.init_state(args.sequence_length)
+        dataloader_iter = iter(dataloader)
+        batch = 0
+        while(dataloader_iter):
+            try:
+                # X_train - [16,4,8], y_train - [16, 4]
+                X_train, y_train, X_val, y_val = next(dataloader_iter)
+            except RuntimeError:
+                continue
 
-        for batch, (X_train, y_train, X_val, y_val) in enumerate(dataloader):
-            # X_train - [16,4,8], y_train - [16, 4]
-            pdb.set_trace()
             optimizer.zero_grad()
 
             y_pred, (state_h, state_c) = model(X_train.to(device),
                                                (state_h.to(device), state_c.to(device)))
-            loss = criterion(y_pred.transpose(1, 2), y_train.to(device))
+            train_loss = criterion(y_pred.transpose(
+                1, 2), y_train.long().to(device))
 
             state_h = state_h.detach()
             state_c = state_c.detach()
 
-            loss.backward()
+            train_loss.backward()
             optimizer.step()
 
-            print({'epoch': epoch, 'batch': batch, 'loss': loss.item()})
+            if batch % 100 == 0:
+                print({'epoch': epoch, 'batch': batch,
+                       'train_loss': train_loss.item()})
+
+            # TODO: Validation
+            # if batch % 500 == 0:
+                # y_pred_val, (state_h, state_c) = model(X_val.to(device),
+                #                                        (state_h.to(device), state_c.to(device)))
+                # val_loss = criterion(y_pred_val.transpose(
+                #     1, 2), y_val.long().to(device))
+                # print({'epoch': epoch, 'batch': batch,
+                #        'val_loss': val_loss.item()})
+
+            batch += 1
 
 
 parser = argparse.ArgumentParser()

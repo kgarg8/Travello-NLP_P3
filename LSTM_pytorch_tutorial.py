@@ -5,9 +5,9 @@ from collections import Counter
 import argparse
 import numpy as np
 from torch.utils.data import DataLoader
-import pdb
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 
 class Model(nn.Module):
     def __init__(self, dataset):
@@ -17,6 +17,7 @@ class Model(nn.Module):
         self.num_layers = 3
 
         n_vocab = len(dataset.uniq_words)
+        print(n_vocab)
         self.embedding = nn.Embedding(
             num_embeddings=n_vocab,
             embedding_dim=self.embedding_dim,
@@ -30,7 +31,6 @@ class Model(nn.Module):
         self.fc = nn.Linear(self.lstm_size, n_vocab)
 
     def forward(self, x, prev_state):
-        # pdb.set_trace()
         embed = self.embedding(x)
         output, state = self.lstm(embed, prev_state)
         logits = self.fc(output)
@@ -53,7 +53,7 @@ class Dataset(torch.utils.data.Dataset):
                               word in enumerate(self.uniq_words)}
 
         self.words_indexes = [self.word_to_index[w] for w in self.words]
-        pdb.set_trace()
+
     def load_words(self):
         train_df = pd.read_csv('reddit-cleanjokes.csv')
         text = train_df['Joke'].str.cat(sep=' ')
@@ -86,7 +86,6 @@ def train(dataset, model, args):
         state_h, state_c = model.init_state(args.sequence_length)
 
         for batch, (x, y) in enumerate(dataloader):
-            # pdb.set_trace()
             optimizer.zero_grad()
 
             y_pred, (state_h, state_c) = model(x.to(device),

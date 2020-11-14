@@ -105,15 +105,18 @@ def generate_data():
         y += [0] * gnum1
 
         # necessarily append the address1
-        temp.append(addrs[i]['address']['address1'].encode('ascii', 'ignore'))
+        temp.append(addrs[i]['address']['address1'].encode(
+            'ascii', 'ignore').decode())
         cnt += 1
         if rnum > 0.05:
-            temp.append(addrs[i]['address']['city'].encode('ascii', 'ignore') + ", " + addrs[i]['address']['state'].encode('ascii', 'ignore') + ", " + addrs[i]['address']['postalCode'].encode('ascii', 'ignore'))
+            temp.append(addrs[i]['address']['city'].encode('ascii', 'ignore').decode() + ", " + addrs[i]['address']
+                        ['state'].encode('ascii', 'ignore').decode() + ", " + addrs[i]['address']['postalCode'].encode('ascii', 'ignore').decode())
             cnt += 1
 
             # dont put phone numbers in all cases as then it will learn that only
             if rnum > 0.6 and 'phone' in addrs[i]:
-                temp.append(addrs[i]['phone'].encode('ascii', 'ignore'))
+                temp.append(addrs[i]['phone'].encode(
+                    'ascii', 'ignore').decode())
                 cnt += 1
         y += [1] * cnt
         temp += random.sample(garbage, gnum2)
@@ -214,7 +217,7 @@ def oneliners():
         for od in ordd:
             part = rests['data'][idx][od]
             if part != None:
-                str1 += part.encode("ascii", "ignore") + ", "
+                str1 += part.encode("ascii", "ignore").decode() + ", "
 
         # this is to capitalize the first letter of all the words
         str1 = str1.title()
@@ -292,18 +295,18 @@ def getvec(lines):
     vec : A list length 8
 
     '''
-    vec = [0]*9
+    vec = [0] * 9
     for line in lines:
         phnum = len(rephone.findall(line))
         nums = len(renum.findall(line))
         numterm = 0
 
         for terms in st.tokenize(line):
-            numterm+=1
+            numterm += 1
             # terms = terms.lower()
             if terms.lower() in streets:
                 vec[0] += 1
-                vec[4] += streets[terms.lower()]/float(summ)
+                vec[4] += streets[terms.lower()] / float(summ)
 
             if terms in states:
                 # state names are biased towards US and Australia addresses

@@ -3,11 +3,12 @@ from fuzzywuzzy import process
 from sklearn.cluster import KMeans
 from bs4 import BeautifulSoup
 import numpy as np
-import urllib.request, urllib.error, urllib.parse
+import urllib.request
+import urllib.error
+import urllib.parse
 import json
 import re
 from create_training import getvec
-import pdb
 
 eps = 0
 
@@ -104,7 +105,7 @@ def consolidateStuff(url, titles, addresses, images):
     jsonoutput = {}
     posspara = LongParas(lens)
     # print type(posspara)
-    titles = [paradict[t]  for t in titles]
+    titles = [paradict[t] for t in titles]
 
     # special consilidation for TripAdvisor
     if 'tripadvisor' in url:
@@ -364,9 +365,9 @@ def getData(paragraphs, NUM_FEATURES, BATCH_SIZE, SEQ_LENGTH=None):
         for i in range(len1):
             data1[i] = np.array(getvec([paragraphs[i]])[:NUM_FEATURES])
 
-        ## bug here... Forgot to pad with 0s at the starting and the end
-        ## but still it is working fine with SEQ_LENGTH = 1 we
-        ## need no padding there
+        # bug here... Forgot to pad with 0s at the starting and the end
+        # but still it is working fine with SEQ_LENGTH = 1 we
+        # need no padding there
 
         # the real array ie. with proper shape, which is to be returned
         data = np.zeros((BATCH_SIZE * (batches), SEQ_LENGTH, NUM_FEATURES))
@@ -442,7 +443,6 @@ def load_dataset(X, y, NUM_FEATURES, wndw=1):
 
     y_val : Labels of validation data points
     '''
-
     for i in range(len(X)):
         X[i] = np.array(X[i])
 
@@ -463,7 +463,6 @@ def load_dataset(X, y, NUM_FEATURES, wndw=1):
 
     X_val = X[-1000:]
     y_val = y[-1000:]
-
     # the cross-categorical cost function requires input in the range (0,1)
     # X[X < eps] = eps
     # X[X > 1 - eps] = 1 - eps
