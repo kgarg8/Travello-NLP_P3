@@ -89,6 +89,8 @@ def train(dataset, model, args, mode):
     dataloader_iter = iter(loader)
     state_h, state_c = model.init_state(args.sequence_length)
     batch = 0
+    loss_avg = RunningAverage()
+    acc_avg = RunningAverage()
     while True:
         try:
             # X - [16,4,8], y - [16, 4]
@@ -102,8 +104,10 @@ def train(dataset, model, args, mode):
         y_pred, (state_h, state_c) = model(X.to(device),
                                            (state_h.to(device), state_c.to(device)))
         loss = criterion(y_pred.transpose(1, 2), y.long().to(device))
+        loss_avg.update(loss.item())
 
         acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
+        acc_avg.update(acc)
 
         state_h = state_h.detach()
         state_c = state_c.detach()
@@ -113,8 +117,11 @@ def train(dataset, model, args, mode):
 
         if batch % 100 == 0:
             print({'epoch': epoch, 'batch': batch,
-                   'train_loss': '{:05.4f}'.format(loss.item()), 'accuracy': '{:05.3f}'.format(acc)})
+                   'train_loss': '{:05.4f}'.format(loss.item())})
         batch += 1
+
+    print({'epoch': epoch, 'train_loss': '{:05.4f}'.format(
+        loss_avg()),  'accuracy': '{:05.3f}'.format(acc_avg())})
 
 
 def val(dataset, model, args, mode):
