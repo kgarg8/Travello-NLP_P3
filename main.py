@@ -1,7 +1,7 @@
 import torch
 from torch import nn, optim
 import sys
-from utils import load_dataset
+from utils import load_dataset, RunningAverage
 import argparse
 from torch.utils.data import DataLoader
 import pdb
@@ -17,7 +17,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 class Model(nn.Module):
-    def __init__(self, dataset):
+    def __init__(self):
         super(Model, self).__init__()
         # self.lstm_size = 128
         self.lstm_size = 8  # Hardcoded, TO CHANGE
@@ -52,63 +52,97 @@ class Model(nn.Module):
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, args,):
+    def __init__(self, args, mode='train'):
         self.args = args
+        self.mode = mode
         self.X_train, self.y_train, self.X_val, self.y_val = load_dataset(
             X1, y1, self.args.num_features)
+        print(self.X_train.shape, self.y_train.shape,
+              self.X_val.shape, self.y_val.shape)
 
     def __len__(self):
-        return self.X_train.shape[0] - self.args.sequence_length - 1
+        if self.mode == 'train':
+            return self.X_train.shape[0] - self.args.sequence_length - 1
+        else:
+            return self.X_val.shape[0] - self.args.sequence_length - 1
 
     def __getitem__(self, index):
-        return torch.from_numpy(self.X_train[index:index + self.args.sequence_length]), torch.from_numpy(self.y_train[index:index + self.args.sequence_length]), torch.from_numpy(self.X_val[index:index + self.args.sequence_length]), torch.from_numpy(self.y_val[index:index + self.args.sequence_length])
+        if self.mode == 'train':
+            return torch.from_numpy(self.X_train[index:index + self.args.sequence_length]), torch.from_numpy(self.y_train[index:index + self.args.sequence_length])
+        elif self.mode == 'val':
+            return torch.from_numpy(self.X_val[index:index + self.args.sequence_length]), torch.from_numpy(self.y_val[index:index + self.args.sequence_length])
 
 
-def train(dataset, model, args):
+def accuracy(y_pred, y_test):
+    y_pred_softmax = torch.log_softmax(y_pred, dim=1)
+    _, y_pred_tags = torch.max(y_pred_softmax, dim=1)
+
+    correct_pred = (y_pred_tags == y_test).float()
+    acc = correct_pred.sum() / torch.numel(correct_pred)
+
+    return acc.item()
+
+
+def train(dataset, model, args, mode):
     model.train()
+    loader = DataLoader(dataset, batch_size=args.batch_size)
+    dataloader_iter = iter(loader)
+    state_h, state_c = model.init_state(args.sequence_length)
+    batch = 0
+    while True:
+        try:
+            # X - [16,4,8], y - [16, 4]
+            X, y = next(dataloader_iter)
+        except RuntimeError:
+            continue
+        except StopIteration:
+            break
 
-    dataloader = DataLoader(dataset, batch_size=args.batch_size)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizer.zero_grad()
+        y_pred, (state_h, state_c) = model(X.to(device),
+                                           (state_h.to(device), state_c.to(device)))
+        loss = criterion(y_pred.transpose(1, 2), y.long().to(device))
 
-    for epoch in range(args.max_epochs):
-        state_h, state_c = model.init_state(args.sequence_length)
-        dataloader_iter = iter(dataloader)
-        batch = 0
-        while(dataloader_iter):
-            try:
-                # X_train - [16,4,8], y_train - [16, 4]
-                X_train, y_train, X_val, y_val = next(dataloader_iter)
-            except RuntimeError:
-                continue
+        acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
 
-            optimizer.zero_grad()
+        state_h = state_h.detach()
+        state_c = state_c.detach()
 
-            y_pred, (state_h, state_c) = model(X_train.to(device),
-                                               (state_h.to(device), state_c.to(device)))
-            train_loss = criterion(y_pred.transpose(
-                1, 2), y_train.long().to(device))
+        loss.backward()
+        optimizer.step()
 
-            state_h = state_h.detach()
-            state_c = state_c.detach()
+        if batch % 100 == 0:
+            print({'epoch': epoch, 'batch': batch,
+                   'train_loss': '{:05.4f}'.format(loss.item()), 'accuracy': '{:05.3f}'.format(acc)})
+        batch += 1
 
-            train_loss.backward()
-            optimizer.step()
 
-            if batch % 100 == 0:
-                print({'epoch': epoch, 'batch': batch,
-                       'train_loss': train_loss.item()})
+def val(dataset, model, args, mode):
+    model.eval()
+    loader = DataLoader(dataset, batch_size=args.batch_size)
+    dataloader_iter = iter(loader)
+    state_h, state_c = model.init_state(args.sequence_length)
+    loss_avg = RunningAverage()
+    acc_avg = RunningAverage()
+    while True:
+        try:
+            X, y = next(dataloader_iter)
+        except RuntimeError:
+            continue
+        except StopIteration:
+            break
 
-            # TODO: Validation
-            # if batch % 500 == 0:
-                # y_pred_val, (state_h, state_c) = model(X_val.to(device),
-                #                                        (state_h.to(device), state_c.to(device)))
-                # val_loss = criterion(y_pred_val.transpose(
-                #     1, 2), y_val.long().to(device))
-                # print({'epoch': epoch, 'batch': batch,
-                #        'val_loss': val_loss.item()})
+        y_pred, (state_h, state_c) = model(X.to(device),
+                                           (state_h.to(device), state_c.to(device)))
+        loss = criterion(y_pred.transpose(
+            1, 2), y.long().to(device))
+        loss_avg.update(loss.item())
 
-            batch += 1
+        acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
+        acc_avg.update(acc)
+
+    print({'epoch': epoch, 'val_loss': '{:05.4f}'.format(
+        loss_avg()),  'accuracy': '{:05.3f}'.format(acc_avg())})
 
 
 parser = argparse.ArgumentParser()
@@ -119,6 +153,13 @@ parser.add_argument('--num-features', type=int, default=8)
 args = parser.parse_args()
 print(args)
 
-dataset = Dataset(args)
-model = Model(dataset).to(device)
-train(dataset, model, args)
+train_set = Dataset(args, 'train')
+val_set = Dataset(args, 'val')
+model = Model().to(device)
+
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+for epoch in range(args.max_epochs):
+    train(train_set, model, args, 'train')
+    val(val_set, model, args, 'val')

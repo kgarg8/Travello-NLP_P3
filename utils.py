@@ -477,3 +477,26 @@ def load_dataset(X, y, NUM_FEATURES, wndw=1):
         X_val = np.vstack([Xbuffer, X_val, Xbuffer])
 
     return X_train, y_train, X_val, y_val
+
+
+class RunningAverage():
+    """A simple class that maintains the running average of a quantity
+    Example:
+    ```
+    loss_avg = RunningAverage()
+    loss_avg.update(2)
+    loss_avg.update(4)
+    loss_avg() = 3
+    ```
+    """
+
+    def __init__(self):
+        self.steps = 0
+        self.total = 0
+
+    def update(self, val):
+        self.total += val
+        self.steps += 1
+
+    def __call__(self):
+        return self.total / float(self.steps)
