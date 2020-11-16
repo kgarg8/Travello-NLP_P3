@@ -5,6 +5,7 @@ from utils import load_dataset, RunningAverage
 import argparse
 from torch.utils.data import DataLoader
 import pdb
+from sklearn.metrics import f1_score
 
 sys.path.insert(0, './database/features')
 
@@ -83,6 +84,14 @@ def accuracy(y_pred, y_test):
     return acc.item()
 
 
+def f1(y_pred, y_test):
+    y_pred_softmax = torch.log_softmax(y_pred, dim=1)
+    _, y_pred_tags = torch.max(y_pred_softmax, dim=1)
+    # print(y_pred_tags)
+    # print(y_test)
+    return f1_score(torch.flatten(y_pred_tags), torch.flatten(y_test))
+
+
 def train(dataset, model, args, mode):
     model.train()
     loader = DataLoader(dataset, batch_size=args.batch_size)
@@ -91,6 +100,7 @@ def train(dataset, model, args, mode):
     batch = 0
     loss_avg = RunningAverage()
     acc_avg = RunningAverage()
+    f1_avg = RunningAverage()
     while True:
         try:
             # X - [16,4,8], y - [16, 4]
@@ -107,7 +117,10 @@ def train(dataset, model, args, mode):
         loss_avg.update(loss.item())
 
         acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
+        f1_scr = f1(y_pred.transpose(1, 2), y.long().to(device))
+
         acc_avg.update(acc)
+        f1_avg.update(f1_scr)
 
         state_h = state_h.detach()
         state_c = state_c.detach()
@@ -121,7 +134,7 @@ def train(dataset, model, args, mode):
         batch += 1
 
     print({'epoch': epoch, 'train_loss': '{:05.4f}'.format(
-        loss_avg()),  'accuracy': '{:05.3f}'.format(acc_avg())})
+        loss_avg()), 'accuracy': '{:05.3f}'.format(acc_avg()), 'f1_score': '{:05.3f}'.format(f1_avg())})
 
 
 def val(dataset, model, args, mode):
@@ -131,6 +144,8 @@ def val(dataset, model, args, mode):
     state_h, state_c = model.init_state(args.sequence_length)
     loss_avg = RunningAverage()
     acc_avg = RunningAverage()
+    f1_avg = RunningAverage()
+
     while True:
         try:
             X, y = next(dataloader_iter)
@@ -146,10 +161,14 @@ def val(dataset, model, args, mode):
         loss_avg.update(loss.item())
 
         acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
+        f1_scr = f1(y_pred.transpose(1, 2), y.long().to(device))
+
         acc_avg.update(acc)
+        f1_avg.update(f1_scr)
+
 
     print({'epoch': epoch, 'val_loss': '{:05.4f}'.format(
-        loss_avg()),  'accuracy': '{:05.3f}'.format(acc_avg())})
+        loss_avg()),  'accuracy': '{:05.3f}'.format(acc_avg()), 'f1_score': '{:05.3f}'.format(f1_avg())})
 
 
 parser = argparse.ArgumentParser()
