@@ -4,6 +4,9 @@ import sys
 from utils import load_dataset, RunningAverage
 import argparse
 from torch.utils.data import DataLoader
+import utils
+import os
+import logging
 import pdb
 
 sys.path.insert(0, './database/features')
@@ -89,8 +92,8 @@ def train(dataset, model, args, mode):
     dataloader_iter = iter(loader)
     state_h, state_c = model.init_state(args.sequence_length)
     batch = 0
-    loss_avg = RunningAverage()
-    acc_avg = RunningAverage()
+    total_loss = 0
+    total_acc = 0
     while True:
         try:
             # X - [16,4,8], y - [16, 4]
@@ -104,10 +107,10 @@ def train(dataset, model, args, mode):
         y_pred, (state_h, state_c) = model(X.to(device),
                                            (state_h.to(device), state_c.to(device)))
         loss = criterion(y_pred.transpose(1, 2), y.long().to(device))
-        loss_avg.update(loss.item())
+        total_loss += loss.item()
 
         acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
-        acc_avg.update(acc)
+        total_acc += acc
 
         state_h = state_h.detach()
         state_c = state_c.detach()
@@ -116,12 +119,12 @@ def train(dataset, model, args, mode):
         optimizer.step()
 
         if batch % 100 == 0:
-            print({'epoch': epoch, 'batch': batch,
-                   'train_loss': '{:05.4f}'.format(loss.item())})
+            logging.info({'epoch': epoch, 'batch': batch,
+                          'train_loss': '{:05.4f}'.format(loss.item())})
         batch += 1
 
-    print({'epoch': epoch, 'train_loss': '{:05.4f}'.format(
-        loss_avg()),  'accuracy': '{:05.3f}'.format(acc_avg())})
+    logging.info({'epoch': epoch, 'train_loss': '{:05.4f}'.format(
+        total_loss / batch),  'accuracy': '{:05.3f}'.format(total_acc / batch)})
 
 
 def val(dataset, model, args, mode):
@@ -129,8 +132,9 @@ def val(dataset, model, args, mode):
     loader = DataLoader(dataset, batch_size=args.batch_size)
     dataloader_iter = iter(loader)
     state_h, state_c = model.init_state(args.sequence_length)
-    loss_avg = RunningAverage()
-    acc_avg = RunningAverage()
+    total_loss = 0
+    total_acc = 0
+    batch = 0
     while True:
         try:
             X, y = next(dataloader_iter)
@@ -143,22 +147,29 @@ def val(dataset, model, args, mode):
                                            (state_h.to(device), state_c.to(device)))
         loss = criterion(y_pred.transpose(
             1, 2), y.long().to(device))
-        loss_avg.update(loss.item())
+        total_loss += loss.item()
 
         acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
-        acc_avg.update(acc)
+        total_acc += acc
+        batch += 1
 
-    print({'epoch': epoch, 'val_loss': '{:05.4f}'.format(
-        loss_avg()),  'accuracy': '{:05.3f}'.format(acc_avg())})
+    logging.info({'epoch': epoch, 'val_loss': '{:05.4f}'.format(
+        total_loss / batch),  'accuracy': '{:05.3f}'.format(total_acc / batch)})
+    return total_acc / batch
 
+
+utils.set_logger(os.path.join(args.model_dir, 'train.log'))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--max-epochs', type=int, default=10)
 parser.add_argument('--batch-size', type=int, default=16)
 parser.add_argument('--sequence-length', type=int, default=4)
 parser.add_argument('--num-features', type=int, default=8)
+parser.add_argument('--model_dir', default='experiments/base_model')
+parser.add_argument('--restore_file', default='best',
+                    help="Optional, file name from which reload weights before training e.g. 'best' or 'last'")
 args = parser.parse_args()
-print(args)
+logging.info(args)
 
 train_set = Dataset(args, 'train')
 val_set = Dataset(args, 'val')
@@ -167,6 +178,49 @@ model = Model().to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+metrics = {
+    'accuracy': accuracy,
+    # add more metrics if required for each token type
+}
+
+patience = 5
+best_val_acc = 0.0
+
+if args.restore_file is not None:
+    restore_path = os.path.join(args.model_dir, args.restore_file + '.pth.tar')
+    logging.info('Restoring parameters from {}'.format(restore_path))
+    utils.load_checkpoint(restore_path, model, optimizer)
+
+    filepath = args.model_dir + 'val_best_weights.json'
+    if os.path.exists(filepath):
+        f = open(filepath)
+        data = json.load(f)
+        best_val_acc = data['accuracy']
+        f.close()
+
 for epoch in range(args.max_epochs):
     train(train_set, model, args, 'train')
-    val(val_set, model, args, 'val')
+    val_acc = val(val_set, model, args, 'val')
+    val_metrics = {'accuracy': val_acc}
+    is_best = val_acc >= best_val_acc
+
+    utils.save_checkpoint({'epoch': epoch + 1,
+                           'state_dict': model.state_dict(),
+                           'optim_dict': optimizer.state_dict()}, is_best=is_best, checkpoint=args.model_dir)
+
+    if is_best:
+        logging.info('- Found new best accuracy')
+        counter = 0  # reset counter
+        best_val_acc = val_acc
+
+        best_json_path = os.path.join(
+            args.model_dir, 'val_best_weights.json')
+        utils.save_dict_to_json(val_metrics, best_json_path)
+    else:
+        counter += 1
+
+    if counter > patience:
+        logging.info('- No improvement in a while, stopping training...')
+    last_json_path = os.path.join(
+        args.model_dir, 'val_last_weights.json')
+    utils.save_dict_to_json(val_metrics, last_json_path)

@@ -1,3 +1,0 @@
-RNN with sequence length = 4 is poor
-LSTM is also working fine
-Old data is presently better than new data...?? ie. without increasing the weights of streets

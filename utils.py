@@ -9,7 +9,10 @@ import urllib.parse
 import json
 import re
 from create_training import getvec
-
+import logging
+import shutil
+import os
+import torch
 eps = 0
 
 
@@ -500,3 +503,60 @@ class RunningAverage():
 
     def __call__(self):
         return self.total / float(self.steps)
+
+
+def set_logger(log_path):
+    """Set the logger to log info in terminal and file 'log_path' """
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    if not logger.handlers:
+        # Logging to a file
+        file_handler = logging.FileHandler(log_path)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s:%(levelname)s:%(message)s'))
+        logger.addHandler(file_handler)
+
+        # Logging to console
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(logging.Formatter('%(message)s'))
+        logger.addHandler(stream_handler)
+
+
+def save_checkpoint(state, is_best, checkpoint):
+    """Saves model and training parameters at checkpoint + 'last.pth.tar'. If is_best==True, also saves checkpoint + 'best.pth.tar'"""
+
+    filepath = os.path.join(checkpoint, 'last.pth.tar')
+    if not os.path.exists(checkpoint):
+        print('Checkpoint directory does not exist! Making directory {}'.format(checkpoint))
+        os.mkdir(checkpoint)
+
+    torch.save(state, filepath)
+    if is_best:
+        shutil.copyfile(filepath, os.path.join(checkpoint, 'best.pth.tar'))
+
+
+def load_checkpoint(filepath, model, optimizer=None):
+    """Loads model parameters (state_dict) from filepath. If optimizer is provided, loads state_dict of optimizer assuming it is present in filepath."""
+
+    if not os.path.exists(filepath):
+        print('File does not exist {}'.format(filepath))
+        return
+
+    checkpoint = torch.load(filepath)
+    model.load_state_dict(checkpoint['state_dict'])
+
+    if optimizer:
+        optimizer.load_state_dict(checkpoint['optim_dict'])
+
+    return checkpoint
+
+
+def save_dict_to_json(d, json_path):
+    """Saves dict of floats in json file"""
+
+    with open(json_path, 'w') as f:
+        # We need to convert the values to float for json (it doesn't accept np.array, np.float, )
+        d = {k: float(v) for k, v in d.items()}
+        json.dump(d, f, indent=4)
