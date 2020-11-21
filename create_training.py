@@ -124,9 +124,6 @@ def generate_data():
         labels1 += y
         lengths1.append(len(y))
 
-        # for i in range(len(y)):
-        #     print (temp[i], y[i])
-
         addresses_train.append(temp)
 
     data_vec = []
@@ -136,17 +133,21 @@ def generate_data():
             print(i)
         data_vec += getdet(addresses_train[i])
 
-    with open("./database/features/train1", "w") as f:
-        print(addresses_train, file=f)
+    with open("./database/features/addresses1.py", "w") as f:
+        f.write('X1_str = ')
+        f.write(str(addresses_train))
 
-    with open("./database/features/labels1.py", "w") as f1:
-        print(labels1, file=f1)
+    with open("./database/features/labels1.py", "w") as f:
+        f.write('y1 = ')
+        f.write(str(labels1))
 
-    with open("./database/features/lenghts1.py", "w") as f1:
-        print(lengths1, file=f1)
+    with open("./database/features/lengths1.py", "w") as f:
+        f.write('l1 = ')
+        f.write(str(lengths1))
 
-    with open("./database/features/datavec1.py", "w") as f2:
-        print(data_vec, file=f2)
+    with open("./database/features/datavec1.py", "w") as f:
+        f.write('X1_num = ')
+        f.write(str(data_vec))
 
 
 def oneliners():
@@ -240,17 +241,21 @@ def oneliners():
             print(i)
         data_vec += getdet(one_line_addrs[i])
 
-    with open("./database/features/train2", "w") as f:
-        print(one_line_addrs, file=f)
+    with open("./database/features/addresses2.py", "w") as f:
+        f.write('X2_str = ')
+        f.write(str(one_line_addrs))
 
-    with open("./database/features/labels2.py", "w") as f1:
-        print(labels2, file=f1)
+    with open("./database/features/labels2.py", "w") as f:
+        f.write('y2 = ')
+        f.write(str(labels2))
 
-    with open("./database/features/lengths2.py", "w") as f1:
-        print(lengths2, file=f1)
+    with open("./database/features/lengths2.py", "w") as f:
+        f.write('l2 = ')
+        f.write(str(lengths2))
 
-    with open("./database/features/datavec2.py", "w") as f2:
-        print(data_vec, file=f2)
+    with open("./database/features/datavec2.py", "w") as f:
+        f.write('X2_num = ')
+        f.write(str(data_vec))
 
 
 def getdet(data):

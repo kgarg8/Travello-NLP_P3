@@ -4,6 +4,7 @@ import sys
 from utils import load_dataset, RunningAverage
 import argparse
 from torch.utils.data import DataLoader
+import transformers as ppb
 import utils
 import os
 import logging
@@ -11,15 +12,17 @@ import pdb
 
 sys.path.insert(0, './database/features')
 
-from datavec1 import X1
-from datavec2 import X2
+from datavec1 import X1_num
+from datavec2 import X2_num
 from labels1 import y1
 from labels2 import y2
+from addresses1 import X1_str
+from addresses2 import X2_str
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-class Model(nn.Module):
+class LstmModel(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
         # self.lstm_size = 128
@@ -54,12 +57,23 @@ class Model(nn.Module):
                 torch.zeros(self.num_layers, sequence_length, self.lstm_size))
 
 
+class BertModel(nn.Module):
+    def __init__(self, num_tokens):
+        super(Model, self).__init__()
+        model_class, tokenizer_class, pretrained_weights = (
+            ppb.BertModel, ppb.BertTokenizer, 'bert-base-uncased')
+        self.tokenizer = tokenizer_class.from_pretrained(pretrained_weights)
+        self.bert = model_class.from_pretrained(pretrained_weights)
+        self.dropout = nn.Dropout()
+        # self.classifier = nn.Linear
+
+
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, args, mode='train'):
         self.args = args
         self.mode = mode
         self.X_train, self.y_train, self.X_val, self.y_val = load_dataset(
-            X1, y1, self.args.num_features)
+            X1_num, y1_num, self.args.num_features)
         print(self.X_train.shape, self.y_train.shape,
               self.X_val.shape, self.y_val.shape)
 
@@ -158,8 +172,6 @@ def val(dataset, model, args, mode):
     return total_acc / batch
 
 
-utils.set_logger(os.path.join(args.model_dir, 'train.log'))
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--max-epochs', type=int, default=10)
 parser.add_argument('--batch-size', type=int, default=16)
@@ -169,6 +181,8 @@ parser.add_argument('--model_dir', default='experiments/base_model')
 parser.add_argument('--restore_file', default='best',
                     help="Optional, file name from which reload weights before training e.g. 'best' or 'last'")
 args = parser.parse_args()
+
+utils.set_logger(os.path.join(args.model_dir, 'train.log'))
 logging.info(args)
 
 train_set = Dataset(args, 'train')
