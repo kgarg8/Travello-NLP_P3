@@ -8,7 +8,6 @@ import transformers as ppb
 import utils
 import os
 import logging
-import pdb
 
 sys.path.insert(0, './database/features')
 
@@ -24,7 +23,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class LstmModel(nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super(LstmModel, self).__init__()
         # self.lstm_size = 128
         self.lstm_size = 8  # Hardcoded, TO CHANGE
         self.embedding_dim = 128
@@ -56,24 +55,12 @@ class LstmModel(nn.Module):
         return (torch.zeros(self.num_layers, sequence_length, self.lstm_size),
                 torch.zeros(self.num_layers, sequence_length, self.lstm_size))
 
-
-class BertModel(nn.Module):
-    def __init__(self, num_tokens):
-        super(Model, self).__init__()
-        model_class, tokenizer_class, pretrained_weights = (
-            ppb.BertModel, ppb.BertTokenizer, 'bert-base-uncased')
-        self.tokenizer = tokenizer_class.from_pretrained(pretrained_weights)
-        self.bert = model_class.from_pretrained(pretrained_weights)
-        self.dropout = nn.Dropout()
-        # self.classifier = nn.Linear
-
-
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, args, mode='train'):
         self.args = args
         self.mode = mode
         self.X_train, self.y_train, self.X_val, self.y_val = load_dataset(
-            X1_num, y1_num, self.args.num_features)
+            X1_num, y1, self.args.num_features)
         print(self.X_train.shape, self.y_train.shape,
               self.X_val.shape, self.y_val.shape)
 
@@ -187,7 +174,7 @@ logging.info(args)
 
 train_set = Dataset(args, 'train')
 val_set = Dataset(args, 'val')
-model = Model().to(device)
+model = LstmModel().to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
