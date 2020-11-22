@@ -20,36 +20,46 @@ from addresses2 import X2_str
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 class BertModel(nn.Module):
     def __init__(self):
         super(BertModel, self).__init__()
+        num_labels = 2
         model_class, tokenizer_class, pretrained_weights = (
             ppb.BertModel, ppb.BertTokenizer, 'bert-base-uncased')
         self.tokenizer = tokenizer_class.from_pretrained(pretrained_weights)
         self.bert = model_class.from_pretrained(pretrained_weights)
         self.dropout = nn.Dropout()
-        # self.classifier =
+        self.classifier = nn.Linear(self.bert.config.hidden_size, 2)
 
     def forward(self, input_ids, attention_mask):
-        last_hidden_states = self.bert(input_ids, attention_mask=attention_mask)
-        features = last_hidden_states[0][:,0,:]
+        last_hidden_states = self.bert(
+            input_ids, attention_mask=attention_mask)
+        features = last_hidden_states[0][:, 0, :]
+        features = self.dropout(features)
+        logits = self.classifier(features)
+        return logits
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, args, mode='train'):
         self.args = args
         self.mode = mode
         tokenizer = ppb.BertTokenizer.from_pretrained('bert-base-uncased')
-        tokenized = list(map(lambda x: tokenizer.encode(x, add_special_tokens=True), X1_str[0])) # incorrect: replace by X1_str
-        
+        tokenized = list(map(lambda x: tokenizer.encode(
+            x, add_special_tokens=True), X1_str[0]))  # incorrect: replace by X1_str
+
         max_len = 0
         for i in tokenized:
             if len(i) > max_len:
                 max_len = len(i)
 
-        padded = np.array([i + [0]*(max_len-len(i)) for i in tokenized])
-        attention_mask = np.where(padded != 0, 1, 0)
-        val_len = len(padded)//6
-        self.X_train, self.y_train, self.X_val, self.y_val = torch.tensor(padded[:-val_len]), torch.tensor(y1[:-val_len]), torch.tensor(padded[-val_len:]), torch.tensor(y1[-val_len:])
+        padded = np.array([i + [0] * (max_len - len(i)) for i in tokenized])
+        val_len = len(padded) // 6
+        # pdb.set_trace()
+        # hack, match dimensions of X1_str and y1
+        self.X_train, self.y_train, self.X_val, self.y_val = torch.tensor(
+            padded[:-val_len]), torch.tensor(y1[:len(padded[:-val_len])]), torch.tensor(padded[-val_len:]), torch.tensor(y1[-val_len:])
         print(self.X_train.shape, self.y_train.shape,
               self.X_val.shape, self.y_val.shape)
 
@@ -62,9 +72,11 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         if self.mode == 'train':
-            return self.X_train, self.y_train
+            attention_mask = torch.where(self.X_train != 0, 1, 0)
+            return self.X_train, attention_mask, self.y_train
         elif self.mode == 'val':
-            return self.X_val, self.y_val
+            attention_mask = torch.where(self.X_train != 0, 1, 0)
+            return self.X_val, attention_mask, self.y_val
 
 
 def accuracy(y_pred, y_test):
@@ -87,14 +99,14 @@ def train(dataset, model, args, mode):
     while True:
         try:
             # X - [16,4,8], y - [16, 4]
-            X, y = next(dataloader_iter)
+            X, attention_mask, y = next(dataloader_iter)
         except RuntimeError:
             continue
         except StopIteration:
             break
 
         optimizer.zero_grad()
-        y_pred, (state_h, state_c) = model(X.to(device))
+        y_pred = model(X.to(device), attention_mask.to(device))
         loss = criterion(y_pred.transpose(1, 2), y.long().to(device))
         total_loss += loss.item()
 
@@ -122,13 +134,13 @@ def val(dataset, model, args, mode):
     batch = 0
     while True:
         try:
-            X, y = next(dataloader_iter)
+            X, attention_mask, y = next(dataloader_iter)
         except RuntimeError:
             continue
         except StopIteration:
             break
 
-        y_pred, (state_h, state_c) = model(X.to(device))
+        y_pred = model(X.to(device), attention_mask.to(device))
         loss = criterion(y_pred.transpose(
             1, 2), y.long().to(device))
         total_loss += loss.item()
@@ -152,6 +164,10 @@ parser.add_argument('--restore_file', default='best',
                     help="Optional, file name from which reload weights before training e.g. 'best' or 'last'")
 args = parser.parse_args()
 
+if not os.path.exists(os.path.join(args.model_dir, 'train.log')):
+    # open(os.path.join(args.model_dir, 'train.log')).close()
+    with open(os.path.join(args.model_dir, 'train.log'), 'w') as fp:
+        pass
 utils.set_logger(os.path.join(args.model_dir, 'train.log'))
 logging.info(args)
 
@@ -206,7 +222,7 @@ for epoch in range(args.max_epochs):
     if counter > patience:
         logging.info('- No improvement in a while, stopping training...')
         break
-    
+
     last_json_path = os.path.join(
         args.model_dir, 'val_last_weights.json')
     utils.save_dict_to_json(val_metrics, last_json_path)

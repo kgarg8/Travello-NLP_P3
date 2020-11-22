@@ -15,8 +15,6 @@ from datavec1 import X1_num
 from datavec2 import X2_num
 from labels1 import y1
 from labels2 import y2
-from addresses1 import X1_str
-from addresses2 import X2_str
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
