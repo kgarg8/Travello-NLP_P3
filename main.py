@@ -8,6 +8,7 @@ import transformers as ppb
 import utils
 import os
 import logging
+import pdb
 
 sys.path.insert(0, './database/features')
 
@@ -52,6 +53,7 @@ class LstmModel(nn.Module):
     def init_state(self, sequence_length):
         return (torch.zeros(self.num_layers, sequence_length, self.lstm_size),
                 torch.zeros(self.num_layers, sequence_length, self.lstm_size))
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, args, mode='train'):
@@ -105,6 +107,7 @@ def train(dataset, model, args, mode):
         optimizer.zero_grad()
         y_pred, (state_h, state_c) = model(X.to(device),
                                            (state_h.to(device), state_c.to(device)))
+        pdb.set_trace()
         loss = criterion(y_pred.transpose(1, 2), y.long().to(device))
         total_loss += loss.item()
 

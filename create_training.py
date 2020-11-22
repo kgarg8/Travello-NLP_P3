@@ -3,6 +3,7 @@ import datefinder
 import random
 import json
 import re
+import pdb
 
 st = TreebankWordTokenizer()
 
@@ -126,16 +127,22 @@ def generate_data():
 
         addresses_train.append(temp)
 
+    # pdb.set_trace()
     data_vec = []
 
     for i in range(len(addresses_train)):
         if i % 100 == 0:
             print(i)
         data_vec += getdet(addresses_train[i])
+        # pdb.set_trace()
 
     with open("./database/features/addresses1.py", "w") as f:
         f.write('X1_str = ')
-        f.write(str(addresses_train))
+        flat_list = []
+        for sublist in addresses_train:
+            for item in sublist:
+                flat_list.append(item)
+        f.write(str(flat_list))
 
     with open("./database/features/labels1.py", "w") as f:
         f.write('y1 = ')
@@ -233,6 +240,7 @@ def oneliners():
         lengths2.append(len(y1))
         labels2 += y1
         one_line_addrs.append(temp)
+        # pdb.set_trace()
 
     data_vec = []
 
@@ -241,9 +249,14 @@ def oneliners():
             print(i)
         data_vec += getdet(one_line_addrs[i])
 
+    # pdb.set_trace()
     with open("./database/features/addresses2.py", "w") as f:
         f.write('X2_str = ')
-        f.write(str(one_line_addrs))
+        flat_list = []
+        for sublist in one_line_addrs:
+            for item in sublist:
+                flat_list.append(item)
+        f.write(str(flat_list))
 
     with open("./database/features/labels2.py", "w") as f:
         f.write('y2 = ')
@@ -274,6 +287,7 @@ def getdet(data):
 
     feature_vec = []
     for i in range(len(data)):
+        # pdb.set_trace()
         feature_vec.append(getvec([data[i]]))
     return feature_vec
 
@@ -340,4 +354,4 @@ def getvec(lines):
 
 if __name__ == '__main__':
     generate_data()
-    oneliners()
+    # oneliners()

@@ -1,13 +1,15 @@
-import torch
 from torch import nn, optim
-import sys
-from utils import load_dataset, RunningAverage
 import argparse
-from torch.utils.data import DataLoader
-import transformers as ppb
+import sys
 import utils
 import os
 import numpy as np
+import random
+import torch
+import transformers as ppb
+from utils import load_dataset, RunningAverage
+from torch.utils.data import DataLoader
+from torch.utils.data.sampler import SubsetRandomSampler
 import logging
 import pdb
 
@@ -34,49 +36,54 @@ class BertModel(nn.Module):
 
     def forward(self, input_ids, attention_mask):
         last_hidden_states = self.bert(
-            input_ids, attention_mask=attention_mask)
+            input_ids, attention_mask=attention_mask)  # TODO: input_ids[0] -> input_ids
         features = last_hidden_states[0][:, 0, :]
         features = self.dropout(features)
         logits = self.classifier(features)
         return logits
 
 
-class Dataset(torch.utils.data.Dataset):
-    def __init__(self, args, mode='train'):
+class AddressDataset(torch.utils.data.Dataset):
+    def __init__(self, args):
         self.args = args
-        self.mode = mode
         tokenizer = ppb.BertTokenizer.from_pretrained('bert-base-uncased')
         tokenized = list(map(lambda x: tokenizer.encode(
-            x, add_special_tokens=True), X1_str[0]))  # incorrect: replace by X1_str
+            x, add_special_tokens=True), X1_str))  # incorrect: replace by X1_str
 
         max_len = 0
         for i in tokenized:
             if len(i) > max_len:
                 max_len = len(i)
 
-        padded = np.array([i + [0] * (max_len - len(i)) for i in tokenized])
-        val_len = len(padded) // 6
-        # pdb.set_trace()
-        # hack, match dimensions of X1_str and y1
-        self.X_train, self.y_train, self.X_val, self.y_val = torch.tensor(
-            padded[:-val_len]), torch.tensor(y1[:len(padded[:-val_len])]), torch.tensor(padded[-val_len:]), torch.tensor(y1[-val_len:])
-        print(self.X_train.shape, self.y_train.shape,
-              self.X_val.shape, self.y_val.shape)
+        self.padded = np.array([i + [0] * (max_len - len(i))
+                                for i in tokenized])
 
-    def __len__(self):
-        if self.mode == 'train':
-            return self.X_train.shape[0]
-            pdb.set_trace()
-        else:
-            return self.X_val.shape[0]
+    def __len__(self, args):
+        return len(self.padded)
 
     def __getitem__(self, index):
-        if self.mode == 'train':
-            attention_mask = torch.where(self.X_train != 0, 1, 0)
-            return self.X_train, attention_mask, self.y_train
-        elif self.mode == 'val':
-            attention_mask = torch.where(self.X_train != 0, 1, 0)
-            return self.X_val, attention_mask, self.y_val
+        attention_mask = np.where(self.padded[index] != 0, 1, 0)
+        return torch.tensor(self.padded[index]), attention_mask, torch.tensor(y1[index])
+
+
+def get_dataloaders(dataset, args):
+    dataset_size = len(dataset.padded)
+    indices = list(range(dataset_size))
+    split = int(np.floor(args.val_split * dataset_size))
+    if args.shuffle:
+        np.random.seed(args.seed)
+        np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+
+    train_sampler = SubsetRandomSampler(train_indices)
+    val_sampler = SubsetRandomSampler(val_indices)
+
+    train_loader = DataLoader(
+        dataset, batch_size=args.batch_size, sampler=train_sampler)
+    val_loader = DataLoader(
+        dataset, batch_size=args.batch_size, sampler=val_sampler)
+
+    return train_loader, val_loader
 
 
 def accuracy(y_pred, y_test):
@@ -89,16 +96,14 @@ def accuracy(y_pred, y_test):
     return acc.item()
 
 
-def train(dataset, model, args, mode):
+def train(loader, model, args):
     model.train()
-    loader = DataLoader(dataset, batch_size=args.batch_size)
     dataloader_iter = iter(loader)
     batch = 0
     total_loss = 0
     total_acc = 0
     while True:
         try:
-            # X - [16,4,8], y - [16, 4]
             X, attention_mask, y = next(dataloader_iter)
         except RuntimeError:
             continue
@@ -107,10 +112,10 @@ def train(dataset, model, args, mode):
 
         optimizer.zero_grad()
         y_pred = model(X.to(device), attention_mask.to(device))
-        loss = criterion(y_pred.transpose(1, 2), y.long().to(device))
+        loss = criterion(y_pred, y.long().to(device))
         total_loss += loss.item()
 
-        acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
+        acc = accuracy(y_pred, y.long().to(device))
         total_acc += acc
 
         loss.backward()
@@ -125,9 +130,8 @@ def train(dataset, model, args, mode):
         total_loss / batch),  'accuracy': '{:05.3f}'.format(total_acc / batch)})
 
 
-def val(dataset, model, args, mode):
+def val(loader, model, args):
     model.eval()
-    loader = DataLoader(dataset, batch_size=args.batch_size)
     dataloader_iter = iter(loader)
     total_loss = 0
     total_acc = 0
@@ -141,11 +145,10 @@ def val(dataset, model, args, mode):
             break
 
         y_pred = model(X.to(device), attention_mask.to(device))
-        loss = criterion(y_pred.transpose(
-            1, 2), y.long().to(device))
+        loss = criterion(y_pred, y[0].long().to(device))  # TODO: y[0] -> y
         total_loss += loss.item()
 
-        acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
+        acc = accuracy(y_pred, y[0].long().to(device))  # TODO: y[0] -> y
         total_acc += acc
         batch += 1
 
@@ -155,35 +158,48 @@ def val(dataset, model, args, mode):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--max-epochs', type=int, default=10)
-parser.add_argument('--batch-size', type=int, default=3)
-parser.add_argument('--sequence-length', type=int, default=4)
-parser.add_argument('--num-features', type=int, default=8)
+parser.add_argument('--max_epochs', type=int, default=10)
+parser.add_argument('--batch_size', type=int, default=4)
+parser.add_argument('--lr', type=float, default=0.001,
+                    help='Learning Rate')
 parser.add_argument('--model_dir', default='experiments/base_model')
 parser.add_argument('--restore_file', default='best',
-                    help="Optional, file name from which reload weights before training e.g. 'best' or 'last'")
+                    help="Optional, file name from which reload weights before training e.g. 'best' or 'last' or None")
+parser.add_argument('--patience', type=int, default=5,
+                    help="Epochs for early stopping")
+parser.add_argument('--seed', type=int, default=100,
+                    help='Seed for randomization')
+parser.add_argument('--val_split', type=float, default=0.2,
+                    help='Size of validation set')
+parser.add_argument('--shuffle', action='store_true',
+                    help='Flag for shuffling dataset')
+
 args = parser.parse_args()
 
+np.random.seed(args.seed)
+random.seed(args.seed)
+torch.manual_seed(args.seed)
+
 if not os.path.exists(os.path.join(args.model_dir, 'train.log')):
-    # open(os.path.join(args.model_dir, 'train.log')).close()
     with open(os.path.join(args.model_dir, 'train.log'), 'w') as fp:
         pass
+
 utils.set_logger(os.path.join(args.model_dir, 'train.log'))
 logging.info(args)
 
-train_set = Dataset(args, 'train')
-val_set = Dataset(args, 'val')
+dataset = AddressDataset(args)
+train_loader, val_loader = get_dataloaders(dataset, args)
 model = BertModel().to(device)
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), args.lr)
 
 metrics = {
     'accuracy': accuracy,
     # add more metrics if required for each token type
 }
 
-patience = 5
+args.patience = 5
 best_val_acc = 0.0
 
 if args.restore_file is not None:
@@ -199,10 +215,10 @@ if args.restore_file is not None:
         f.close()
 
 for epoch in range(args.max_epochs):
-    train(train_set, model, args, 'train')
-    val_acc = val(val_set, model, args, 'val')
+    train(train_loader, model, args)
+    val_acc = val(val_loader, model, args)
     val_metrics = {'accuracy': val_acc}
-    is_best = val_acc >= best_val_acc
+    is_best = val_acc > best_val_acc
 
     utils.save_checkpoint({'epoch': epoch + 1,
                            'state_dict': model.state_dict(),
@@ -219,7 +235,7 @@ for epoch in range(args.max_epochs):
     else:
         counter += 1
 
-    if counter > patience:
+    if counter > args.patience:
         logging.info('- No improvement in a while, stopping training...')
         break
 
