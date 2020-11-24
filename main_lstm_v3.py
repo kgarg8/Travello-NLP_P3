@@ -28,7 +28,7 @@ class LstmModel(nn.Module):
     def __init__(self, args):
         super(LstmModel, self).__init__()
         self.lstm_size = 128
-        self.embedding_dim = 120
+        self.embedding_dim = 128  # v3
         self.num_layers = 3
 
         len_dataset = len(X1_num)
@@ -37,7 +37,7 @@ class LstmModel(nn.Module):
             embedding_dim=self.embedding_dim,
         )
         self.lstm = nn.LSTM(
-            input_size=self.embedding_dim + args.num_features,
+            input_size=self.embedding_dim,
             hidden_size=self.lstm_size,
             num_layers=self.num_layers,
             dropout=0.2,
@@ -45,9 +45,8 @@ class LstmModel(nn.Module):
         self.fc = nn.Linear(self.lstm_size, 2)
 
     def forward(self, x, x_int, prev_state):
+        # v3: only NN embeddings
         embed = self.embedding(x_int).mean(dim=2)
-        # v2: concat hand designed and NN embeddings
-        embed = torch.cat((x, embed), dim=2)
         output, state = self.lstm(embed.float(), prev_state)
         logits = self.fc(output)
         return logits, state
@@ -300,7 +299,7 @@ if args.restore_file is not None:
         f.close()
 
 for epoch in range(args.max_epochs):
-    # train(train_set, train_set2, model, args, 'train')
+    train(train_set, train_set2, model, args, 'train')
     val_acc = val(val_set, val_set2, model, args, 'val')
     val_metrics = {'accuracy': val_acc}
     is_best = val_acc >= best_val_acc

@@ -3,3 +3,6 @@ __pycache__/
 database/features/__pycache__/
 experiments/base_model/
 python2_backup/
+experiments/base_model/*.tar
+experiments/bert/*.tar
+experiments/lstm/*.tar

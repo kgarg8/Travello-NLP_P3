@@ -8,7 +8,7 @@ import transformers as ppb
 import utils
 import os
 import logging
-import pdb
+from sklearn.metrics import f1_score, recall_score, precision_score
 
 sys.path.insert(0, './database/features')
 
@@ -23,28 +23,20 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class LstmModel(nn.Module):
     def __init__(self):
         super(LstmModel, self).__init__()
-        # self.lstm_size = 128
-        self.lstm_size = 8  # Hardcoded, TO CHANGE
+        self.lstm_size = 8
         self.embedding_dim = 128
         self.num_layers = 3
 
-        n_vocab = 2  # TO CHANGE
-        # n_vocab = len(dataset.uniq_words)
-        # self.embedding = nn.Embedding(
-        #     num_embeddings=n_vocab,
-        #     embedding_dim=self.embedding_dim,
-        # )
+        num_outputs = 2
         self.lstm = nn.LSTM(
-            # input_size=self.lstm_size,
             input_size=8,
             hidden_size=self.lstm_size,
             num_layers=self.num_layers,
             dropout=0.2,
         )
-        self.fc = nn.Linear(self.lstm_size, n_vocab)
+        self.fc = nn.Linear(self.lstm_size, num_outputs)
 
     def forward(self, x, prev_state):
-        # embed = self.embedding(x) # v2: create embeddings using NN
         embed = x.float()  # v1: only hand-designed features
         output, state = self.lstm(embed, prev_state)
         logits = self.fc(output)
@@ -81,10 +73,23 @@ def accuracy(y_pred, y_test):
     y_pred_softmax = torch.log_softmax(y_pred, dim=1)
     _, y_pred_tags = torch.max(y_pred_softmax, dim=1)
 
-    correct_pred = (y_pred_tags == y_test).float()
+    correct_pred = (y_pred_tags[:, 0] == y_test[:, 0]).float()
     acc = correct_pred.sum() / torch.numel(correct_pred)
 
     return acc.item()
+
+
+def other_metrics(y_pred, y_test):
+    y_pred_softmax = torch.log_softmax(y_pred, dim=1)
+    _, y_pred_tags = torch.max(y_pred_softmax, dim=1)
+
+    f1 = f1_score(y_test[:, 0].cpu().numpy(), y_pred_tags[:, 0].cpu().numpy())
+    recall = recall_score(y_test[:, 0].cpu().numpy(),
+                          y_pred_tags[:, 0].cpu().numpy())
+    precision = precision_score(
+        y_test[:, 0].cpu().numpy(), y_pred_tags[:, 0].cpu().numpy())
+
+    return f1, recall, precision
 
 
 def train(dataset, model, args, mode):
@@ -97,7 +102,6 @@ def train(dataset, model, args, mode):
     total_acc = 0
     while True:
         try:
-            # X - [16,4,8], y - [16, 4]
             X, y = next(dataloader_iter)
         except RuntimeError:
             continue
@@ -107,7 +111,6 @@ def train(dataset, model, args, mode):
         optimizer.zero_grad()
         y_pred, (state_h, state_c) = model(X.to(device),
                                            (state_h.to(device), state_c.to(device)))
-        pdb.set_trace()
         loss = criterion(y_pred.transpose(1, 2), y.long().to(device))
         total_loss += loss.item()
 
@@ -136,6 +139,9 @@ def val(dataset, model, args, mode):
     state_h, state_c = model.init_state(args.sequence_length)
     total_loss = 0
     total_acc = 0
+    total_f1 = 0
+    total_recall = 0
+    total_precision = 0
     batch = 0
     while True:
         try:
@@ -152,11 +158,21 @@ def val(dataset, model, args, mode):
         total_loss += loss.item()
 
         acc = accuracy(y_pred.transpose(1, 2), y.long().to(device))
+        f1, recall, precision = other_metrics(
+            y_pred.transpose(1, 2), y.long().to(device))
+
         total_acc += acc
+        total_f1 += f1
+        total_recall += recall
+        total_precision += precision
+
         batch += 1
 
     logging.info({'epoch': epoch, 'val_loss': '{:05.4f}'.format(
         total_loss / batch),  'accuracy': '{:05.3f}'.format(total_acc / batch)})
+    logging.info({'f1-score': '{:05.3f}'.format(total_f1 / batch), 'recall': '{:05.3f}'.format(
+        total_recall / batch), 'precision': '{:05.3f}'.format(total_precision / batch)})
+
     return total_acc / batch
 
 

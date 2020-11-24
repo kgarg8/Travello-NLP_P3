@@ -13,6 +13,9 @@ import logging
 import shutil
 import os
 import torch
+import pdb
+
+
 eps = 0
 
 
@@ -461,11 +464,12 @@ def load_dataset(X, y, NUM_FEATURES, wndw=1):
     X = X[:NUM_FEATURES]
     X = X.T
 
-    X_train = X[:-1000]
-    y_train = y[:-1000]
+    val_split = round(len(X) * 0.2)
+    X_train = X[:-val_split]
+    y_train = y[:-val_split]
 
-    X_val = X[-1000:]
-    y_val = y[-1000:]
+    X_val = X[-val_split:]
+    y_val = y[-val_split:]
     # the cross-categorical cost function requires input in the range (0,1)
     # X[X < eps] = eps
     # X[X > 1 - eps] = 1 - eps
