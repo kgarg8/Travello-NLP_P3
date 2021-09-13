@@ -1,4 +1,7 @@
 # Travello-NLP
+
+Please see the short paper for this work [here](https://github.com/kgarg8/Travello-NLP_P3/blob/master/Travello___LSTM.pdf).
+
 This automation API is used by the Travello-extension to automate the extraction of names, addresses, write-up and the image-url of points of interest on a webpage.
 It is used as follows:-
 
